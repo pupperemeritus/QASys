@@ -10,19 +10,60 @@ import {
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import { z } from "zod";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import {
+    getAuth,
+    signInWithEmailAndPassword,
+    signInWithPopup,
+    GoogleAuthProvider,
+} from "firebase/auth";
 
 interface LoginDialogProps {
-    onLogin: (username: string, password: string) => void;
     onClose: () => void;
 }
 
-export default function LoginDialog({ onLogin, onClose }: LoginDialogProps) {
-    const [username, setUsername] = useState("");
-    const [password, setPassword] = useState("");
+const loginSchema = z.object({
+    email: z.string().email("Invalid email address"),
+    password: z.string().min(8, "Password must be at least 8 characters"),
+});
 
-    const handleSubmit = (e: React.FormEvent) => {
-        e.preventDefault();
-        onLogin(username, password);
+type LoginFormData = z.infer<typeof loginSchema>;
+
+export default function LoginDialog({ onClose }: LoginDialogProps) {
+    const {
+        register,
+        handleSubmit,
+        formState: { errors },
+    } = useForm<LoginFormData>({
+        resolver: zodResolver(loginSchema),
+    });
+    const [loginError, setLoginError] = useState<string | null>(null);
+
+    const onSubmit = async (data: LoginFormData) => {
+        try {
+            const auth = getAuth();
+            await signInWithEmailAndPassword(auth, data.email, data.password);
+            onClose();
+        } catch (error) {
+            setLoginError("Invalid email or password");
+        }
+    };
+
+    const handleGoogleSignIn = async () => {
+        try {
+            const auth = getAuth();
+            const provider = new GoogleAuthProvider();
+            await signInWithPopup(auth, provider);
+            onClose();
+        } catch (error) {
+            if (error instanceof Error) {
+                setLoginError(error.message);
+            } else {
+                setLoginError("An error occurred during Google sign-in");
+            }
+        }
     };
 
     return (
@@ -33,27 +74,50 @@ export default function LoginDialog({ onLogin, onClose }: LoginDialogProps) {
                 <DialogHeader>
                     <DialogTitle>Login</DialogTitle>
                 </DialogHeader>
-                <form onSubmit={handleSubmit}>
+                <Button
+                    onClick={handleGoogleSignIn}
+                    className="w-full mb-4 bg-slate-800">
+                    Sign in with Google
+                </Button>
+                <div className="relative mb-4">
+                    <hr className="border-slate-700" />
+                    <span className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-slate-900 px-2 text-slate-400">
+                        or
+                    </span>
+                </div>
+                <form onSubmit={handleSubmit(onSubmit)}>
                     <div className="space-y-4">
                         <div>
-                            <Label htmlFor="username">Username</Label>
+                            <Label htmlFor="email">Email</Label>
                             <Input
-                                id="username"
-                                value={username}
-                                onChange={(e) => setUsername(e.target.value)}
+                                id="email"
+                                type="email"
+                                {...register("email")}
                                 className="bg-slate-800 text-slate-200 border-slate-700"
                             />
+                            {errors.email && (
+                                <p className="text-red-500">
+                                    {errors.email.message}
+                                </p>
+                            )}
                         </div>
                         <div>
                             <Label htmlFor="password">Password</Label>
                             <Input
                                 id="password"
                                 type="password"
-                                value={password}
-                                onChange={(e) => setPassword(e.target.value)}
+                                {...register("password")}
                                 className="bg-slate-800 text-slate-200 border-slate-700"
                             />
+                            {errors.password && (
+                                <p className="text-red-500">
+                                    {errors.password.message}
+                                </p>
+                            )}
                         </div>
+                        {loginError && (
+                            <p className="text-red-500">{loginError}</p>
+                        )}
                     </div>
                     <DialogFooter className="mt-4">
                         <Button
