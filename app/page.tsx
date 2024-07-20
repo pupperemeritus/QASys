@@ -131,11 +131,41 @@ export default function Home() {
         }
     };
 
-    const handlePDFUpload = (file: File) => {
+    const handlePDFUpload = async (file: File) => {
         console.log("PDF uploaded:", file.name);
         setPdfFile(file);
         setShowPDFUploadDialog(false);
-        // Here you would typically process the PDF file, perhaps send it to your backend
+
+        const user = auth.currentUser;
+        if (!user) {
+            console.error("User not authenticated");
+            return;
+        }
+
+        try {
+            const formData = new FormData();
+            formData.append("file", file);
+
+            const response = await fetch(
+                `${process.env.NEXT_PUBLIC_FASTAPI_URL}/pdf/upload`,
+                {
+                    method: "POST",
+                    headers: {
+                        Authorization: `Bearer ${await user.getIdToken()}`,
+                    },
+                    body: formData,
+                }
+            );
+
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+
+            const data = await response.json();
+            console.log("Backend response:", data);
+        } catch (error) {
+            console.error("Error uploading PDF:", error);
+        }
     };
 
     const handleClearHistory = () => {
