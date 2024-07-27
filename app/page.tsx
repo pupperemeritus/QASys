@@ -34,6 +34,10 @@ interface Message {
     sender: "user" | "ai";
 }
 
+interface MessageResponse {
+    answer: string;
+}
+
 export default function Home() {
     const [messages, setMessages] = useState<Message[]>([]);
     const [input, setInput] = useState("");
@@ -109,15 +113,37 @@ export default function Home() {
         saveMessages(updatedMessages);
 
         try {
+            const user = auth.currentUser;
+            if (!user) {
+                console.error("User not authenticated");
+                return;
+            }
+            const idToken = await user.getIdToken();
+            const reqHeaders = new Headers();
+            console.log(
+                "Token:",
+                idToken.substring(0, 10) +
+                    "..." +
+                    idToken.substring(idToken.length - 10)
+            );
+
+            reqHeaders.set("Authorization", `Bearer ${idToken}`);
+            reqHeaders.set("Content-Type", "application/json");
             const response = await fetch(
-                `${process.env.NEXT_PUBLIC_FASTAPI_URL}/ask`,
+                `${process.env.NEXT_PUBLIC_FASTAPI_URL}/qa/ask`,
                 {
                     method: "POST",
-                    headers: { "Content-Type": "application/json" },
+                    headers: reqHeaders,
                     body: JSON.stringify({ question: sanitizedInput }),
                 }
             );
-            const data = await response.json();
+
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.json}`);
+            }
+
+            const data: MessageResponse = await response.json();
+
             const aiMessage: Message = {
                 id: Date.now(),
                 content: data.answer,
@@ -132,26 +158,24 @@ export default function Home() {
     };
 
     const handlePDFUpload = async (file: File) => {
-        console.log("PDF uploaded:", file.name);
+        console.log("PDF uploading:", file.name);
         setPdfFile(file);
         setShowPDFUploadDialog(false);
-
-        const user = auth.currentUser;
-        if (!user) {
-            console.error("User not authenticated");
-            return;
-        }
-
         try {
+            const user = auth.currentUser;
+            if (!user) {
+                console.error("User not authenticated");
+                return;
+            }
+            const idToken = await user.getIdToken();
             const formData = new FormData();
             formData.append("file", file);
-
             const response = await fetch(
                 `${process.env.NEXT_PUBLIC_FASTAPI_URL}/pdf/upload`,
                 {
                     method: "POST",
                     headers: {
-                        Authorization: `Bearer ${await user.getIdToken()}`,
+                        Authorization: `Bearer ${idToken}`,
                     },
                     body: formData,
                 }
@@ -160,9 +184,10 @@ export default function Home() {
             if (!response.ok) {
                 throw new Error(`HTTP error! status: ${response.status}`);
             }
-
+            
             const data = await response.json();
             console.log("Backend response:", data);
+            console.log("PDF uploaded:", file.name);
         } catch (error) {
             console.error("Error uploading PDF:", error);
         }
