@@ -1,4 +1,3 @@
-// components/RegistrationDialog.tsx
 import { useState } from "react";
 import {
     Dialog,
@@ -13,14 +12,7 @@ import { Label } from "@/components/ui/label";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import {
-    getAuth,
-    createUserWithEmailAndPassword,
-    signInWithPopup,
-    GoogleAuthProvider,
-    updateProfile,
-} from "firebase/auth";
-
+import { useAuth } from "@/hooks/useAuth";
 interface RegistrationDialogProps {
     onClose: () => void;
 }
@@ -66,17 +58,11 @@ export default function RegistrationDialog({
         null
     );
 
+    const { signUp, signInWithGoogle } = useAuth();
+
     const onSubmit = async (data: RegistrationFormData) => {
         try {
-            const auth = getAuth();
-            const userCredential = await createUserWithEmailAndPassword(
-                auth,
-                data.email,
-                data.password
-            );
-            await updateProfile(userCredential.user, {
-                displayName: data.username,
-            });
+            await signUp(data.email, data.password, data.username);
             onClose();
         } catch (error) {
             if (error instanceof Error) {
@@ -89,9 +75,7 @@ export default function RegistrationDialog({
 
     const handleGoogleSignUp = async () => {
         try {
-            const auth = getAuth();
-            const provider = new GoogleAuthProvider();
-            await signInWithPopup(auth, provider);
+            await signInWithGoogle();
             onClose();
         } catch (error) {
             if (error instanceof Error) {

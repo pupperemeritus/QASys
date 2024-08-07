@@ -13,7 +13,13 @@ import { Paperclip, Send } from "lucide-react";
 import DOMPurify from "dompurify";
 import { initializeApp } from "firebase/app";
 import { getAuth, onAuthStateChanged, User } from "firebase/auth";
-import { getDatabase, ref, set, onValue, off } from "firebase/database";
+import {
+    getFirestore,
+    doc,
+    runTransaction,
+    onSnapshot,
+} from "firebase/firestore";
+import { v4 as uuidv4 } from "uuid";
 
 const firebaseConfig = {
     apiKey: process.env.NEXT_PUBLIC_apiKey,
@@ -27,15 +33,13 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
-const database = getDatabase(app);
+const db = getFirestore(app);
 interface Message {
-    id: number;
+    id: string;
     content: string;
     sender: "user" | "ai";
-}
-
-interface MessageResponse {
-    answer: string;
+    timestamp: number;
+    status: "sent" | "delivered" | "read" | "error";
 }
 
 export default function Home() {
@@ -57,33 +61,62 @@ export default function Home() {
     useEffect(() => {
         const loadMessages = async () => {
             if (user) {
-                const messagesRef = ref(database, `users/${user.uid}/messages`);
-                onValue(messagesRef, (snapshot) => {
-                    const data = snapshot.val();
-                    if (data) {
-                        setMessages(data);
+                const userRef = doc(db, "users", user.uid);
+                a;
+                const unsubscribe = onSnapshot(userRef, (doc) => {
+                    if (doc.exists()) {
+                        const data = doc.data();
+                        if (data && data.messages) {
+                            // Ensure messages are valid before setting them
+                            const validMessages = data.messages.map(
+                                (msg: any) => ({
+                                    id: msg.id,
+                                    content: msg.content,
+                                    sender: msg.sender,
+                                    timestamp: msg.timestamp,
+                                    status: msg.status,
+                                })
+                            );
+                            setMessages(validMessages);
+                        }
                     }
                 });
+                return unsubscribe;
             } else {
                 const storedMessages = localStorage.getItem("chatHistory");
                 if (storedMessages) {
-                    setMessages(JSON.parse(storedMessages));
+                    const parsedMessages = JSON.parse(storedMessages).map(
+                        (msg: any) => ({
+                            id: msg.id,
+                            content: msg.content,
+                            sender: msg.sender,
+                            timestamp: msg.timestamp,
+                            status: msg.status,
+                        })
+                    );
+                    setMessages(parsedMessages);
                 }
             }
         };
 
         loadMessages();
-        return () => {
-            if (user) {
-                const messagesRef = ref(database, `users/${user.uid}/messages`);
-                off(messagesRef);
-            }
-        };
     }, [user]);
 
-    const saveMessages = (messages: Message[]) => {
+    const saveMessages = async (messages: Message[]) => {
         if (user) {
-            set(ref(database, `users/${user.uid}/messages`), messages);
+            const userRef = doc(db, "users", user.uid);
+            try {
+                await runTransaction(db, async (transaction) => {
+                    const userDoc = await transaction.get(userRef);
+                    if (!userDoc.exists()) {
+                        throw "Document does not exist!";
+                    }
+                    transaction.update(userRef, { messages: messages });
+                });
+                console.log("Transaction successfully committed!");
+            } catch (e) {
+                console.log("Transaction failed: ", e);
+            }
         } else {
             localStorage.setItem("chatHistory", JSON.stringify(messages));
         }
@@ -103,9 +136,11 @@ export default function Home() {
         const sanitizedInput = DOMPurify.sanitize(input);
 
         const newMessage: Message = {
-            id: Date.now(),
+            id: uuidv4(),
             content: sanitizedInput,
             sender: "user",
+            timestamp: Date.now(),
+            status: "sent",
         };
         const updatedMessages = [...messages, newMessage];
         setMessages(updatedMessages);
@@ -120,15 +155,10 @@ export default function Home() {
             }
             const idToken = await user.getIdToken();
             const reqHeaders = new Headers();
-            console.log(
-                "Token:",
-                idToken.substring(0, 10) +
-                    "..." +
-                    idToken.substring(idToken.length - 10)
-            );
 
             reqHeaders.set("Authorization", `Bearer ${idToken}`);
             reqHeaders.set("Content-Type", "application/json");
+
             const response = await fetch(
                 `${process.env.NEXT_PUBLIC_FASTAPI_URL}/qa/ask`,
                 {
@@ -139,26 +169,48 @@ export default function Home() {
             );
 
             if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.json}`);
+                throw new Error(`HTTP error! status: ${response.status}`);
             }
 
-            const data: MessageResponse = await response.json();
+            const data = await response.json();
 
-            const aiMessage: Message = {
-                id: Date.now(),
-                content: data.answer,
-                sender: "ai",
-            };
-            const finalMessages = [...updatedMessages, aiMessage];
-            setMessages(finalMessages);
-            saveMessages(finalMessages);
+            // Check if data has the expected structure
+            if (typeof data.answer === "object" && data.answer.result) {
+                // If the answer is an object with a 'result' property
+                const aiMessage: Message = {
+                    id: uuidv4(),
+                    content:
+                        data.answer.result ||
+                        "Sorry, I couldn't generate a response.",
+                    sender: "ai",
+                    timestamp: Date.now(),
+                    status: "delivered",
+                };
+                const finalMessages = [...updatedMessages, aiMessage];
+                setMessages(finalMessages);
+                saveMessages(finalMessages);
+            } else if (typeof data.answer === "string") {
+                const aiMessage: Message = {
+                    id: uuidv4(),
+                    content:
+                        data.answer.result ||
+                        "Sorry, I couldn't generate a response.",
+                    sender: "ai",
+                    timestamp: Date.now(),
+                    status: "delivered",
+                };
+                const finalMessages = [...updatedMessages, aiMessage];
+                setMessages(finalMessages);
+                saveMessages(finalMessages);
+            } else {
+                console.error("Unexpected response structure:", data);
+            }
         } catch (error) {
             console.error("Error fetching answer:", error);
         }
     };
 
     const handlePDFUpload = async (file: File) => {
-        console.log("PDF uploading:", file.name);
         setPdfFile(file);
         setShowPDFUploadDialog(false);
         try {
@@ -184,10 +236,8 @@ export default function Home() {
             if (!response.ok) {
                 throw new Error(`HTTP error! status: ${response.status}`);
             }
-            
+
             const data = await response.json();
-            console.log("Backend response:", data);
-            console.log("PDF uploaded:", file.name);
         } catch (error) {
             console.error("Error uploading PDF:", error);
         }
@@ -289,6 +339,12 @@ export default function Home() {
                                     placeholder="Ask a question..."
                                     value={input}
                                     onChange={(e) => setInput(e.target.value)}
+                                    onKeyDown={(e) => {
+                                        if (e.key === "Enter" && !e.shiftKey) {
+                                            e.preventDefault();
+                                            handleSubmit(e);
+                                        }
+                                    }}
                                     className="grow pr-24 sticky pb-0 float-left col-span-2 bg-slate-800 min-h-fit text-slate-100 border-slate-700 placeholder-slate-400 resize-none"
                                     style={{
                                         height: "auto",

@@ -1,4 +1,3 @@
-// components/LoginDialog.tsx
 import { useState } from "react";
 import {
     Dialog,
@@ -13,12 +12,8 @@ import { Label } from "@/components/ui/label";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import {
-    getAuth,
-    signInWithEmailAndPassword,
-    signInWithPopup,
-    GoogleAuthProvider,
-} from "firebase/auth";
+import { useAuth } from "@/hooks/useAuth";
+
 
 interface LoginDialogProps {
     onClose: () => void;
@@ -41,10 +36,11 @@ export default function LoginDialog({ onClose }: LoginDialogProps) {
     });
     const [loginError, setLoginError] = useState<string | null>(null);
 
+    const { signIn, signInWithGoogle } = useAuth();
+
     const onSubmit = async (data: LoginFormData) => {
         try {
-            const auth = getAuth();
-            await signInWithEmailAndPassword(auth, data.email, data.password);
+            await signIn(data.email, data.password);
             onClose();
         } catch (error) {
             setLoginError("Invalid email or password");
@@ -53,9 +49,7 @@ export default function LoginDialog({ onClose }: LoginDialogProps) {
 
     const handleGoogleSignIn = async () => {
         try {
-            const auth = getAuth();
-            const provider = new GoogleAuthProvider();
-            await signInWithPopup(auth, provider);
+            await signInWithGoogle();
             onClose();
         } catch (error) {
             if (error instanceof Error) {
