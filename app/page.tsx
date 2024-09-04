@@ -1,4 +1,3 @@
-// app/page.tsx
 "use client";
 import { useState, useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/card";
@@ -20,6 +19,7 @@ import {
     onSnapshot,
 } from "firebase/firestore";
 import { v4 as uuidv4 } from "uuid";
+import FormattedMessage from "@/components/FormattedMessage";
 
 const firebaseConfig = {
     apiKey: process.env.NEXT_PUBLIC_apiKey,
@@ -50,9 +50,23 @@ export default function Home() {
     const [showRegistrationDialog, setShowRegistrationDialog] = useState(false);
     const [showPDFUploadDialog, setShowPDFUploadDialog] = useState(false);
     const [pdfFile, setPdfFile] = useState<File | null>(null);
+    const [guestId, setGuestId] = useState<string | null>(null);
+
     useEffect(() => {
         const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-            setUser(currentUser);
+            if (currentUser) {
+                setUser(currentUser);
+                setGuestId(null);
+                localStorage.removeItem("guestId");
+            } else {
+                setUser(null);
+                let storedGuestId = localStorage.getItem("guestId");
+                if (!storedGuestId) {
+                    storedGuestId = uuidv4();
+                    localStorage.setItem("guestId", storedGuestId);
+                }
+                setGuestId(storedGuestId);
+            }
         });
 
         return () => unsubscribe();
@@ -62,7 +76,7 @@ export default function Home() {
         const loadMessages = async () => {
             if (user) {
                 const userRef = doc(db, "users", user.uid);
-                a;
+
                 const unsubscribe = onSnapshot(userRef, (doc) => {
                     if (doc.exists()) {
                         const data = doc.data();
@@ -82,7 +96,7 @@ export default function Home() {
                     }
                 });
                 return unsubscribe;
-            } else {
+            } else if (guestId) {
                 const storedMessages = localStorage.getItem("chatHistory");
                 if (storedMessages) {
                     const parsedMessages = JSON.parse(storedMessages).map(
@@ -100,7 +114,7 @@ export default function Home() {
         };
 
         loadMessages();
-    }, [user]);
+    }, [user, guestId, messages]);
 
     const saveMessages = async (messages: Message[]) => {
         if (user) {
@@ -220,6 +234,7 @@ export default function Home() {
                 return;
             }
             const idToken = await user.getIdToken();
+
             const formData = new FormData();
             formData.append("file", file);
             const response = await fetch(
@@ -324,7 +339,9 @@ export default function Home() {
                                                 ? "bg-slate-600 text-slate-200"
                                                 : "bg-slate-800 text-slate-200"
                                         }`}>
-                                        {message.content}
+                                        <FormattedMessage
+                                            content={message.content}
+                                        />
                                     </div>
                                 </div>
                             </div>
