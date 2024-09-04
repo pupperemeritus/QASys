@@ -10,15 +10,29 @@ import {
     updateProfile,
 } from "firebase/auth";
 import { getFirestore, doc, setDoc } from "firebase/firestore";
+import { v4 as uuidv4 } from "uuid";
 
 export function useAuth() {
     const [user, setUser] = useState<User | null>(null);
+    const [guestId, setGuestId] = useState<string | null>(null);
     const auth = getAuth();
     const db = getFirestore();
 
     useEffect(() => {
         const unsubscribe = onAuthStateChanged(auth, (user) => {
-            setUser(user);
+            if (user) {
+                setUser(user);
+                setGuestId(null);
+                localStorage.removeItem("guestId");
+            } else {
+                setUser(null);
+                let storedGuestId = localStorage.getItem("guestId");
+                if (!storedGuestId) {
+                    storedGuestId = uuidv4();
+                    localStorage.setItem("guestId", storedGuestId);
+                }
+                setGuestId(storedGuestId);
+            }
         });
         return unsubscribe;
     }, [auth]);
@@ -63,5 +77,5 @@ export function useAuth() {
         );
     };
 
-    return { user, signUp, signIn, signInWithGoogle, signOut };
+    return { user, guestId, signUp, signIn, signInWithGoogle, signOut };
 }
