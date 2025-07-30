@@ -1,36 +1,57 @@
-This is a [Next.js](https://nextjs.org/) project bootstrapped with [`create-next-app`](https://github.com/vercel/next.js/tree/canary/packages/create-next-app).
+# Q&A System - Next.js Frontend
+
+This is the frontend for a Question & Answering application, built with Next.js and TypeScript. It provides a chat interface for users to interact with the Q&A system.
+
+## Features
+
+- **Interactive Chat UI:** A clean interface for sending and receiving messages.
+- **User Authentication:** Supports user registration and login via Firebase.
+- **PDF Upload:** Allows authenticated users to upload PDF documents.
+- **Chat History:**
+  - For authenticated users, chat history is saved to and retrieved from Firestore.
+  - For guest users, chat history is persisted in the browser's local storage.
+- **Markdown Support:** Renders AI responses with basic Markdown formatting.
 
 ## Getting Started
 
-First, run the development server:
+### Prerequisites
+
+- Node.js and npm (or yarn/pnpm).
+- A configured Firebase project for the frontend.
+- The FastAPI backend must be running.
+
+### Installation
+
+1. **Clone the repository:**
+
+   ```bash
+   git clone https://github.com/pupperemeritus/QASys.git
+   cd QASys
+   ```
+
+2. **Install dependencies:**
+
+   ```bash
+   npm install
+   ```
+
+3. **Environment Variables:**
+   Create a `.env.local` file in the root of your project and add the following Firebase and backend configuration:
+
+   ```
+   NEXT_PUBLIC_apiKey=your-firebase-api-key
+   NEXT_PUBLIC_authDomain=your-firebase-auth-domain
+   NEXT_PUBLIC_projectId=your-firebase-project-id
+   NEXT_PUBLIC_storageBucket=your-firebase-storage-bucket
+   NEXT_PUBLIC_messagingSenderId=your-firebase-messaging-sender-id
+   NEXT_PUBLIC_appId=your-firebase-app-id
+   NEXT_PUBLIC_measurementId=your-firebase-measurement-id
+
+   NEXT_PUBLIC_FASTAPI_URL=[http://127.0.0.1:8000](http://127.0.0.1:8000)
+   ```
+
+### Running the Development Server
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
-
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
-
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
-
-This project uses [`next/font`](https://nextjs.org/docs/basic-features/font-optimization) to automatically optimize and load Inter, a custom Google Font.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js/) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/deployment) for more details.
